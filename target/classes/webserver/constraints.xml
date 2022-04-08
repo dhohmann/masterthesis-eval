@@ -1,0 +1,46 @@
+<constraints>
+    <rule>
+        <eq>
+            <var>HTTPS</var>
+            <conj>
+                <var>HTTP</var>
+                <var>SSL</var>
+            </conj>
+        </eq>
+    </rule>
+    <rule>
+        <lessThan>
+            <sum type="long">Latenz</sum>
+            <const type="long">1</const>
+        </lessThan>
+    </rule>
+    <rule>
+        <greaterThan>
+            <sum type="double">Latenz</sum>
+            <avg type="long">MAnf</avg>
+        </greaterThan>
+    </rule>
+    <rule>
+        <imp>
+            <var>Dynamisch</var>
+            <var>Scriptsprachen</var>
+        </imp>
+    </rule>
+    <rule>
+        <imp>
+            <not>
+                <disj>
+                    <var>HTTP</var>
+                    <var>HTTPS</var>
+                </disj>
+            </not>
+            <var>File</var>
+        </imp>
+    </rule>
+    <rule>
+        <imp>
+            <var>File</var>
+            <var>Dateisystem</var>
+        </imp>
+    </rule>
+</constraints>
