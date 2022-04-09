@@ -4,6 +4,12 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
+    <parent>
+        <groupId>org.spldev</groupId>
+        <artifactId>formula-analysis-javasmt</artifactId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+
     <groupId>org.example</groupId>
     <artifactId>java-smt-attributes</artifactId>
     <version>1.0-SNAPSHOT</version>
@@ -12,29 +18,87 @@
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
         <maven.compiler.release>11</maven.compiler.release>
+        <project.dependency.relativepath>libs</project.dependency.relativepath>
+        <project.dependency.path>${project.build.directory}/${project.dependency.relativepath}</project.dependency.path>
     </properties>
-
 
     <dependencies>
         <dependency>
             <groupId>org.spldev</groupId>
-            <version>1.0-SNAPSHOT</version>
-            <artifactId>formula-analysis</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.spldev</groupId>
-            <version>1.0-SNAPSHOT</version>
-            <artifactId>formula</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.spldev</groupId>
-            <version>1.0-SNAPSHOT</version>
             <artifactId>util</artifactId>
+            <version>1.0-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.spldev</groupId>
+            <artifactId>formula</artifactId>
             <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>org.spldev</groupId>
+            <artifactId>formula-analysis</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>org.spldev</groupId>
             <artifactId>formula-analysis-javasmt</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>org.sosy-lab</groupId>
+            <artifactId>java-smt</artifactId>
+            <version>3.9.0-1-g304079c2</version>
+        </dependency>
+        <dependency>
+            <groupId>org.spldev</groupId>
+            <artifactId>javasmt-native</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <classifier>native-dependencies</classifier>
+            <type>tar.gz</type>
         </dependency>
     </dependencies>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <artifactId>maven-jar-plugin</artifactId>
+                    <version>3.0.2</version>
+                    <configuration>
+                        <archive>
+                            <manifest>
+                                <addClasspath>true</addClasspath>
+                                <classpathPrefix>${project.dependency.relativepath}</classpathPrefix>
+                            </manifest>
+                        </archive>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>unpack-dependency</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>unpack</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.dependency.path}</outputDirectory>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>org.spldev</groupId>
+                                    <artifactId>javasmt-native</artifactId>
+                                    <classifier>native-dependencies</classifier>
+                                    <type>tar.gz</type>
+                                </artifactItem>
+                            </artifactItems>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
 </project>
