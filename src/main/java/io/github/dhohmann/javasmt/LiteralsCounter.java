@@ -8,22 +8,22 @@ import java.util.List;
 
 public class LiteralsCounter implements TreeVisitor<Integer, Tree<?>> {
 
-    private int literals = 0;
+	private int literals = 0;
 
-    @Override
-    public void reset() {
-        literals = 0;
-    }
+	@Override
+	public void reset() {
+		literals = 0;
+	}
 
-    @Override
-    public VisitorResult firstVisit(List<Tree<?>> path) {
-        if (TreeVisitor.getCurrentNode(path) instanceof Atomic)
-            literals++;
-        return VisitorResult.Continue;
-    }
+	@Override
+	public VisitorResult firstVisit(List<Tree<?>> path) {
+		if (TreeVisitor.getCurrentNode(path) instanceof Atomic)
+			literals++;
+		return VisitorResult.Continue;
+	}
 
-    @Override
-    public Integer getResult() {
-        return literals;
-    }
+	@Override
+	public Integer getResult() {
+		return literals;
+	}
 }

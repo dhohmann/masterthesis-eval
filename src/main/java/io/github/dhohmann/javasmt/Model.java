@@ -15,240 +15,290 @@ import org.spldev.util.io.FileHandler;
 import org.spldev.util.logging.Logger;
 import org.spldev.util.tree.Trees;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.util.*;
 
 public class Model {
 
-    private final String name;
-    private Result<Formula> model, constraints;
+	private final String name;
+	private final File folder;
+	private Result<Formula> model, constraints;
 
-    private boolean containsCustomAttributes = false;
-    private boolean containsConstraints = false;
-    private boolean containsCount = false;
-    private boolean containsAttributes = false;
+	private boolean containsCustomAttributes = false;
+	private boolean containsConstraints = false;
+	private boolean containsCount = false;
+	private boolean containsAttributes = false;
 
-    private Model(String name) {
-        this.name = name;
-    }
+	private Model(File folder) {
+		this.name = folder.getName();
+		this.folder = folder;
+	}
 
-    public static Model load(String name) {
-        return Model.load(name, true, true);
-    }
+	public static Model load(File folder) {
+		return Model.load(folder, true, true);
+	}
 
-    public static Model load(String name, boolean useAttributes, boolean generateCount) {
-        return new Model(name).load(new HashMap<>(), useAttributes, generateCount);
-    }
+	public static Model load(File folder, boolean useAttributes, boolean generateCount) {
+		return new Model(folder).load(new HashMap<>(), useAttributes, generateCount);
+	}
 
-    public Model load(HashMap<String, Object> attributes, boolean useAttributes, boolean generateCount) {
-        XmlExtendedFeatureModelFormat modelFormat = new XmlExtendedFeatureModelFormat(attributes);
-        modelFormat.setUseAttributes(useAttributes);
-        modelFormat.setGenerateCount(generateCount);
+	public Model load(HashMap<String, Object> attributes, boolean useAttributes, boolean generateCount) {
+		XmlExtendedFeatureModelFormat modelFormat = new XmlExtendedFeatureModelFormat(attributes);
+		modelFormat.setUseAttributes(useAttributes);
+		modelFormat.setGenerateCount(generateCount);
 
-        if (!attributes.isEmpty()) {
-            containsCustomAttributes = true;
-        }
-        if (useAttributes) {
-            containsAttributes = true;
-        }
+		if (!attributes.isEmpty()) {
+			containsCustomAttributes = true;
+		}
+		if (useAttributes) {
+			containsAttributes = true;
+		}
 
-        if (generateCount) {
-            containsCount = true;
-        }
+		if (generateCount) {
+			containsCount = true;
+		}
 
-        model = FileHandler.load(getClass().getResourceAsStream("/" + name + "/model.xml"), modelFormat);
-        return this;
-    }
+		try {
+			FileInputStream stream = new FileInputStream(new File(folder, "model.xml"));
+			model = FileHandler.load(stream, modelFormat);
+		} catch (FileNotFoundException e) {
+			throw new RuntimeException("Could not load model", e);
+		}
 
-    public Model appendConstraints() {
-        if (model != null) {
-            InputStream stream = getClass().getResourceAsStream("/" + name + "/constraints.xml");
-            if (stream == null) {
-                constraints = Result.empty(new Problem(new NullPointerException("No constraints present")));
-            } else {
-                ConfiguringConstraintsFormat constraintsFormat = new ConfiguringConstraintsFormat(model.orElse(Logger::logProblems).getVariableMap());
-                constraints = FileHandler.load(stream, constraintsFormat);
-            }
-            containsConstraints = true;
-        } else {
-            System.out.println("Load model first");
-        }
-        return this;
-    }
+		return this;
+	}
 
+	public Model appendConstraints() {
+		if (model != null) {
+			File constraintsXML = new File(folder, "constraints.xml");
+			InputStream stream = null;
+			try {
+				stream = new FileInputStream(constraintsXML);
+			} catch (FileNotFoundException e) {
+			}
+			if (stream == null) {
+				constraints = Result.empty(new Problem(new NullPointerException("No constraints present")));
+			} else {
+				ConfiguringConstraintsFormat constraintsFormat = new ConfiguringConstraintsFormat(model.orElse(
+					Logger::logProblems).getVariableMap());
+				constraints = FileHandler.load(stream, constraintsFormat);
+			}
+			containsConstraints = true;
+		} else {
+			System.out.println("Load model first");
+		}
+		return this;
+	}
 
-    public Statistics getStatistics() {
-        Statistics statistics = new Statistics(containsCustomAttributes, containsConstraints, containsCount, containsAttributes);
-        if (model == null) {
-            return statistics;
-        }
+	public Statistics getStatistics() {
+		Statistics statistics = new Statistics(containsCustomAttributes, containsConstraints, containsCount,
+			containsAttributes);
+		if (model == null) {
+			return statistics;
+		}
 
-        if (!model.isPresent()) {
-            throw new RuntimeException("Model " + name + " was not found");
-        }
+		if (!model.isPresent()) {
+			throw new RuntimeException("Model " + name + " was not found");
+		}
 
+		Formula formula = getFormula();
 
-        Formula formula = getFormula();
+		VariableMap variableMap = VariableMap.fromExpression(formula);
+		statistics.setFeatureCount(getFeatureCount(variableMap));
+		statistics.setLiteralCount(getLiterals(formula));
+		statistics.setAttributeCount(getAttributes(variableMap));
+		statistics.setAttributeValueCount(getModelAttributes(variableMap));
+		statistics.setVariableCount(getVariableCount(variableMap));
+		statistics.setAttributeVariableCount(getAttributeVariableCount(variableMap));
+		statistics.setConfiguringConstraints(getConstraints());
+		return statistics;
+	}
 
-        VariableMap variableMap = VariableMap.fromExpression(formula);
-        statistics.setFeatureCount(getFeatureCount(variableMap));
-        statistics.setLiteralCount(getLiterals(formula));
-        statistics.setAttributeCount(getAttributes(variableMap));
-        statistics.setAttributeValueCount(getModelAttributes(variableMap));
-        statistics.setVariableCount(getVariableCount(variableMap));
-        statistics.setAttributeVariableCount(getAttributeVariableCount(variableMap));
-        return statistics;
-    }
+	public int getConstraints() {
+		if (constraints == null || !constraints.isPresent()) {
+			return 0;
+		}
+		Formula f = constraints.get();
+		return f.getChildren().size();
+	}
 
-    public Formula getFormula() {
-        Formula formula = model.get();
-        if (constraints != null && constraints.isPresent()) {
-            formula = new And(formula, constraints.get());
-        }
-        return formula;
-    }
+	public Formula getFormula() {
+		Formula formula = model.get();
+		if (constraints != null && constraints.isPresent()) {
+			formula = new And(formula, constraints.get());
+		}
+		return formula;
+	}
 
-    private int getVariableCount(VariableMap variableMap) {
-        return variableMap.getNames().size();
-    }
+	private int getVariableCount(VariableMap variableMap) {
+		return variableMap.getNames().size();
+	}
 
-    private int getLiterals(Formula formula) {
-        return Trees.traverse(formula, new LiteralsCounter()).get();
-    }
+	private int getLiterals(Formula formula) {
+		return Trees.traverse(formula, new LiteralsCounter()).get();
+	}
 
-    private int getFeatureCount(VariableMap variableMap) {
-        int count = 0;
-        for (String name : variableMap.getNames()) {
-            Optional<Variable<?>> o = variableMap.getVariable(name);
-            if (o.isPresent() && o.get() instanceof BoolVariable) {
-                count++;
-            }
-        }
-        return count;
-    }
+	private int getFeatureCount(VariableMap variableMap) {
+		int count = 0;
+		for (String name : variableMap.getNames()) {
+			Optional<Variable<?>> o = variableMap.getVariable(name);
+			if (o.isPresent() && o.get() instanceof BoolVariable) {
+				count++;
+			}
+		}
+		return count;
+	}
 
-    private int getAttributes(VariableMap variableMap) {
-        List<String> featureAttributes = new ArrayList<>();
-        for (String name : variableMap.getNames()) {
-            if (name.matches("(.*)\\(.*\\)")) {
-                String attribute = name.substring(0, name.indexOf("("));
-                if (!featureAttributes.contains(attribute)) {
-                    featureAttributes.add(attribute);
-                }
-            }
-        }
-        return featureAttributes.size();
-    }
+	private int getAttributes(VariableMap variableMap) {
+		List<String> featureAttributes = new ArrayList<>();
+		for (String name : variableMap.getNames()) {
+			if (name.matches("(.*)\\(.*\\)")) {
+				String attribute = name.substring(0, name.indexOf("("));
+				if (!featureAttributes.contains(attribute)) {
+					featureAttributes.add(attribute);
+				}
+			}
+		}
+		return featureAttributes.size();
+	}
 
-    private int getAttributeVariableCount(VariableMap variableMap) {
-        int count = 0;
-        for (String name : variableMap.getNames()) {
-            Optional<Variable<?>> o = variableMap.getVariable(name);
-            if (o.isPresent() && (o.get() instanceof IntVariable || o.get() instanceof RealVariable)) {
-                count++;
-            }
-        }
-        return count;
-    }
+	private int getAttributeVariableCount(VariableMap variableMap) {
+		int count = 0;
+		for (String name : variableMap.getNames()) {
+			Optional<Variable<?>> o = variableMap.getVariable(name);
+			if (o.isPresent() && (o.get() instanceof IntVariable || o.get() instanceof RealVariable)) {
+				if (!name.matches("\\.count")) {
+					count++;
+				}
+			}
+		}
+		return count;
+	}
 
-    private int getModelAttributes(VariableMap variableMap) {
-        int count = 0;
-        for (String name : variableMap.getNames()) {
-            if (name.matches("(.*)\\(.*\\)")) {
-                Optional<Variable<?>> o = variableMap.getVariable(name);
-                if (o.isPresent() && (o.get() instanceof IntVariable || o.get() instanceof RealVariable)) {
-                    count++;
-                }
-            }
-        }
-        return count;
-    }
+	private int getModelAttributes(VariableMap variableMap) {
+		int count = 0;
+		for (String name : variableMap.getNames()) {
+			if (name.matches("(.*)\\(.*\\)")) {
+				Optional<Variable<?>> o = variableMap.getVariable(name);
+				if (o.isPresent() && (o.get() instanceof IntVariable || o.get() instanceof RealVariable)) {
+					count++;
+				}
+			}
+		}
+		return count;
+	}
 
-    public final class Statistics {
+	public final class Statistics {
 
-        private int features = -1;
-        private int literals = -1;
-        private int attributes = -1;
-        private int variables = -1;
-        private int attributeValues = -1;
-        private int attributeVariables;
+		private int features = -1;
+		private int literals = -1;
+		private int attributes = -1;
+		private int variables = -1;
+		private int attributeValues = -1;
+		private int attributeVariables;
 
-        private boolean containsCustomAttributes = false;
-        private boolean containsConstraints = false;
-        private boolean containsCount = false;
-        private boolean containsAttributes = false;
+		private boolean containsCustomAttributes = false;
+		private boolean containsConstraints = false;
+		private boolean containsCount = false;
+		private boolean containsAttributes = false;
+		private int configuringConstraints = -1;
 
-        public Statistics(boolean customAttributes, boolean constraints, boolean count, boolean attributes) {
-            containsCustomAttributes = customAttributes;
-            containsAttributes = attributes;
-            containsConstraints = constraints;
-            containsCount = count;
-        }
+		public Statistics(boolean customAttributes, boolean constraints, boolean count, boolean attributes) {
+			containsCustomAttributes = customAttributes;
+			containsAttributes = attributes;
+			containsConstraints = constraints;
+			containsCount = count;
+		}
 
-        void setFeatureCount(int count) {
-            this.features = count;
-        }
+		public String getNameSuffix() {
+			StringBuilder suffix = new StringBuilder();
+			if (containsCount) {
+				suffix.append("_count");
+			}
+			if (containsConstraints) {
+				suffix.append("_constraints");
+			}
+			if (containsAttributes) {
+				suffix.append("_attr");
+			}
+			return suffix.toString();
+		}
 
-        void setLiteralCount(int count) {
-            this.literals = count;
-        }
+		void setFeatureCount(int count) {
+			this.features = count;
+		}
 
-        void setAttributeCount(int count) {
-            this.attributes = count;
-        }
+		void setLiteralCount(int count) {
+			this.literals = count;
+		}
 
-        void setVariableCount(int count) {
-            this.variables = count;
-        }
+		void setAttributeCount(int count) {
+			this.attributes = count;
+		}
 
-        void setAttributeValueCount(int modelAttributes) {
-            this.attributeValues = modelAttributes;
-        }
+		void setVariableCount(int count) {
+			this.variables = count;
+		}
 
-        void setAttributeVariableCount(int attributeVariableCount) {
-            this.attributeVariables = attributeVariableCount;
-        }
+		void setAttributeValueCount(int modelAttributes) {
+			this.attributeValues = modelAttributes;
+		}
 
-        @Override
-        public String toString() {
-            return "Statistics (" + name + "){" +
-                    "features=" + features +
-                    ", literals=" + literals +
-                    ", attributes=" + attributes +
-                    ", features with attributes=" + attributeValues +
-                    ", variables=" + variables +
-                    ", variables for count=" + (variables - attributeValues - features) +
-                    ", variables for aggr=" + attributeVariables +
-                    ", customAttributes=" + containsCustomAttributes +
-                    ", constraints included=" + containsConstraints +
-                    ", containsCount=" + containsCount +
-                    ", containsAttributes=" + containsAttributes +
-                    '}';
-        }
+		void setAttributeVariableCount(int attributeVariableCount) {
+			this.attributeVariables = attributeVariableCount;
+		}
 
-        public int getAttributes() {
-            return attributes;
-        }
+		@Override
+		public String toString() {
+			return "Statistics (" + name + "){" +
+				"features=" + features +
+				", literals=" + literals +
+				", attributes=" + attributes +
+				", features with attributes=" + attributeValues +
+				", variables=" + variables +
+				", variables for count=" + (variables - attributeValues - features) +
+				", variables for aggr=" + attributeVariables +
+				", customAttributes=" + containsCustomAttributes +
+				", constraints included=" + configuringConstraints +
+				", containsCount=" + containsCount +
+				", containsAttributes=" + containsAttributes +
+				'}';
+		}
 
-        public int getAttributeValues() {
-            return attributeValues;
-        }
+		public int getAttributes() {
+			return attributes;
+		}
 
-        public int getAttributeVariables() {
-            return attributeVariables;
-        }
+		public int getAttributeValues() {
+			return attributeValues;
+		}
 
-        public int getFeatures() {
-            return features;
-        }
+		public int getAttributeVariables() {
+			return attributeVariables;
+		}
 
-        public int getLiterals() {
-            return literals;
-        }
+		public int getFeatures() {
+			return features;
+		}
 
-        public int getVariables() {
-            return variables;
-        }
-    }
+		public int getLiterals() {
+			return literals;
+		}
+
+		public int getVariables() {
+			return variables;
+		}
+
+		public void setConfiguringConstraints(int constraints) {
+			this.configuringConstraints = constraints;
+		}
+
+		public int getConfiguringConstraints() {
+			return configuringConstraints;
+		}
+	}
 
 }

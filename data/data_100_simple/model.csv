@@ -1,0 +1,8 @@
+model;features;literals;attributes;variables;variables for aggregations;configuring constraints
+sandwich;19;58;0;19;0;0
+sandwich_attr;19;517;2;154;135;0
+sandwich_count_attr;19;594;2;174;155;0
+webserver;17;50;0;17;0;0
+webserver_attr;17;271;2;82;65;0
+webserver_count_attr;17;340;2;100;83;0
+webserver_count_constraints_attr;17;341;2;100;83;1
